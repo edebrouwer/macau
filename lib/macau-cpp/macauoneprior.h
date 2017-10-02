@@ -19,7 +19,7 @@ class MacauOnePrior : public ILatentPrior {
     double lambda_beta_a0; /* Hyper-prior for lambda_beta */
     double lambda_beta_b0; /* Hyper-prior for lambda_beta */
 
-    Eigen::VectorXd mu; 
+    Eigen::VectorXd mu;
     Eigen::VectorXd lambda;
     double lambda_a0;
     double lambda_b0;
@@ -36,6 +36,11 @@ class MacauOnePrior : public ILatentPrior {
                                    const Eigen::MatrixXd &samples, double alpha, const int num_latent) override;
     void sample_latents(ProbitNoise & noise, Eigen::MatrixXd &U, const Eigen::SparseMatrix<double> &mat,
                                    double mean_value, const Eigen::MatrixXd &samples, const int num_latent) override;
+    //Tobit
+    void sample_latents(FixedGaussianNoise& noise, Eigen::MatrixXd &U, const Eigen::SparseMatrix<double> &mat,
+                                double mean_value, const Eigen::MatrixXd &samples, const int num_latent,const Eigen::SparseMatrix<int> &C ,double alpha) override;
+
+    //Tensor
     void sample_latents(ProbitNoise& noiseModel, TensorData & data,
                                 std::vector< std::unique_ptr<Eigen::MatrixXd> > & samples, int mode, const int num_latent) override;
     void sample_latents(double noisePrecision, TensorData & data,
@@ -49,4 +54,3 @@ class MacauOnePrior : public ILatentPrior {
     void setLambdaBeta(double lb) { lambda_beta = Eigen::VectorXd::Constant(num_latent, lb); };
     void saveModel(std::string prefix) override;
 };
-

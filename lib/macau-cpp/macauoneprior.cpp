@@ -9,7 +9,7 @@
 #include "bpmfutils.h"
 #include "macauoneprior.h"
 
-using namespace std; 
+using namespace std;
 using namespace Eigen;
 
 template<class FType>
@@ -157,7 +157,7 @@ void MacauOnePrior<FType>::sample_latents(
       // computing Lid
       const double uid = (*U)(d, i);
       double Lid = lambda(d) * (mu(d) + Uhat(d, i));
-      
+
       for (int idx = 0; idx < nnz; idx++) {
         int j = idx + row_ptr(i);
 
@@ -185,6 +185,14 @@ void MacauOnePrior<FType>::sample_latents(
     }
   }
 }
+
+template<class FType>
+void MacauOnePrior<FType>::sample_latents(FixedGaussianNoise& noise, Eigen::MatrixXd &U, const Eigen::SparseMatrix<double> &mat,
+                            double mean_value, const Eigen::MatrixXd &samples, const int num_latent,const Eigen::SparseMatrix<int> &C ,double alpha){
+//TODO
+throw std::runtime_error("Unimplemented: sample_latents in MacauOnePrior");
+}
+
 
 template<class FType>
 void MacauOnePrior<FType>::update_prior(const Eigen::MatrixXd &U) {

@@ -14,7 +14,7 @@ extern "C" {
   #include <sparse.h>
 }
 
-using namespace std; 
+using namespace std;
 using namespace Eigen;
 
 void ILatentPrior::sample_latents(FixedGaussianNoise & noise, Eigen::MatrixXd &U, const Eigen::SparseMatrix<double> &mat,
@@ -54,6 +54,16 @@ void ILatentPrior::sample_latents(ProbitNoise & noiseModel, MatrixData & matrixD
   }
 }
 
+/*TOBIT*/
+void ILatentPrior::sample_latents(FixedGaussianNoise & noiseModel, MatrixDataCensored & matrixData,
+                                std::vector< std::unique_ptr<Eigen::MatrixXd> > & samples, int mode, const int num_latent) {
+  if (mode == 0) {
+    this->sample_latents(noiseModel, *samples[0], matrixData.Yt, matrixData.mean_value, *samples[1], num_latent, matrixData.Ct, noiseModel.alpha);
+  } else {
+    this->sample_latents(noiseModel, *samples[1], matrixData.Y,  matrixData.mean_value, *samples[0], num_latent, matrixData.C, noiseModel.alpha);
+  }
+}
+/*TENSOR*/
 void ILatentPrior::sample_latents(FixedGaussianNoise& noiseModel, TensorData & data,
                                 std::vector< std::unique_ptr<Eigen::MatrixXd> > & samples, int mode, const int num_latent) {
   sample_latents(noiseModel.alpha, data, samples, mode, num_latent);
@@ -69,7 +79,7 @@ void ILatentPrior::sample_latents(AdaptiveGaussianNoise& noiseModel, TensorData 
 void BPMFPrior::sample_latents(Eigen::MatrixXd &U, const Eigen::SparseMatrix<double> &mat, double mean_value,
                     const Eigen::MatrixXd &samples, double alpha, const int num_latent) {
   const int N = U.cols();
-  
+
 #pragma omp parallel for schedule(dynamic, 2)
   for(int n = 0; n < N; n++) {
     sample_latent_blas(U, n, mat, mean_value, samples, alpha, mu, Lambda, num_latent);
@@ -106,7 +116,13 @@ void BPMFPrior::sample_latents(ProbitNoise & noise, Eigen::MatrixXd &U, const Ei
   for(int n = 0; n < N; n++) {
     sample_latent_blas_probit(U, n, mat, mean_value, samples, mu, Lambda, num_latent);
   }
- 
+
+}
+
+void BPMFPrior::sample_latents(FixedGaussianNoise& noise, Eigen::MatrixXd &U, const Eigen::SparseMatrix<double> &mat,
+                    double mean_value, const Eigen::MatrixXd &samples, const int num_latent,const Eigen::SparseMatrix<int> &C ,double alpha){
+  // TODO
+  throw std::runtime_error("Unimplemented: sample_latents in BPMFPrior");
 }
 
 void BPMFPrior::sample_latents(ProbitNoise& noiseModel, TensorData & data,
@@ -304,6 +320,19 @@ void MacauPrior<FType>::sample_latents(ProbitNoise & noise, Eigen::MatrixXd &U, 
 
 }
 
+//TOBIT
+template<class FType>
+void MacauPrior<FType>::sample_latents(FixedGaussianNoise & noise, Eigen::MatrixXd &U, const Eigen::SparseMatrix<double> &mat,
+                                       double mean_value, const Eigen::MatrixXd &samples, const int num_latent,const Eigen::SparseMatrix<int> &C ,double alpha) {
+    const int N = U.cols();
+#pragma omp parallel for schedule(dynamic, 2)
+  for(int n = 0; n < N; n++) {
+    // TODO: try moving mu + Uhat.col(n) inside sample_latent for speed
+    sample_latent_blas_tobit(U, n, mat, mean_value, samples, mu + Uhat.col(n), Lambda, num_latent, C, alpha);
+  }
+
+}
+
 void BPMFPrior::saveModel(std::string prefix) {
   writeToCSVfile(prefix + "-latentmean.csv", mu);
 }
@@ -365,17 +394,47 @@ void sample_latent_blas(MatrixXd &s, int mm, const SparseMatrix<double> &mat, do
   MatrixXd MM = Lambda_u;
   VectorXd rr = VectorXd::Zero(num_latent);
   for (SparseMatrix<double>::InnerIterator it(mat, mm); it; ++it) {
-    auto col = samples.col(it.row());
-    MM.triangularView<Eigen::Lower>() += alpha * col * col.transpose();
-    rr.noalias() += col * ((it.value() - mean_rating) * alpha);
+    auto col = samples.col(it.row()); //sample of the other latent vector (v or u) corresponding to the current entry
+    MM.triangularView<Eigen::Lower>() += alpha * col * col.transpose(); //Creation of the precision matrix for sampling
+    rr.noalias() += col * ((it.value() - mean_rating) * alpha); // Creation of the mean vector
   }
 
+  Eigen::LLT<MatrixXd> chol = MM.llt(); // Cholesky decomposition of the precision matrix
+  if(chol.info() != Eigen::Success) {
+    throw std::runtime_error("Cholesky Decomposition failed!");
+  }
+
+  rr.noalias() += Lambda_u * mu_u; // Update of the mean vector
+  chol.matrixL().solveInPlace(rr);
+  for (int i = 0; i < num_latent; i++) {
+    rr[i] += randn0();
+  }
+  chol.matrixU().solveInPlace(rr); // Sampling from the computed mean vector and precision matrix
+  s.col(mm).noalias() = rr;
+}
+
+
+void sample_latent_blas_tobit(MatrixXd &s, int mm, const SparseMatrix<double> &mat, double mean_rating,
+    const MatrixXd &samples, const VectorXd &mu_u, const MatrixXd &Lambda_u,
+    const int num_latent, const SparseMatrix<int> &C, double alpha)
+{
+    MatrixXd MM = Lambda_u;
+    VectorXd rr = VectorXd::Zero(num_latent);
+    double z;
+    auto u = s.col(mm);
+    for (SparseMatrix<double>::InnerIterator it(mat, mm); it; ++it) {
+      auto col = samples.col(it.row());
+      MM.triangularView<Eigen::Lower>() += alpha * col * col.transpose(); //precision matrix computation
+			int cens = C.coeff(it.row(),it.col()); // 1 if censored, 0 otherwise
+      z = (it.value()-cens*rand_truncnorm(it.value()-col.dot(u), alpha, 0)); // if censored, sample from truncnorm, otherwise take the observation
+      rr.noalias() += col * z * alpha; //update the mean vector ATTENTION : Should we center with mean_rating ???
+    }
   Eigen::LLT<MatrixXd> chol = MM.llt();
   if(chol.info() != Eigen::Success) {
     throw std::runtime_error("Cholesky Decomposition failed!");
   }
 
-  rr.noalias() += Lambda_u * mu_u;
+  rr.noalias() += Lambda_u * mu_u; //same processing as in normal mode.
   chol.matrixL().solveInPlace(rr);
   for (int i = 0; i < num_latent; i++) {
     rr[i] += randn0();
@@ -387,24 +446,24 @@ void sample_latent_blas(MatrixXd &s, int mm, const SparseMatrix<double> &mat, do
 void sample_latent_blas_probit(MatrixXd &s, int mm, const SparseMatrix<double> &mat, double mean_rating,
     const MatrixXd &samples, const VectorXd &mu_u, const MatrixXd &Lambda_u,
     const int num_latent)
-{ 
+{
     MatrixXd MM = Lambda_u;
     VectorXd rr = VectorXd::Zero(num_latent);
     double z;
     auto u = s.col(mm);
     for (SparseMatrix<double>::InnerIterator it(mat, mm); it; ++it) {
       auto col = samples.col(it.row());
-      MM.triangularView<Eigen::Lower>() += col * col.transpose();
-			double y = 2 * it.value() - 1;
-      z = y * rand_truncnorm(y * col.dot(u), 1.0, 0.0);
-      rr.noalias() += col * z;
+      MM.triangularView<Eigen::Lower>() += col * col.transpose(); //precision matrix computation
+			double y = 2 * it.value() - 1; // set value 1 or -1
+      z = y * rand_truncnorm(y * col.dot(u), 1.0, 0.0); // sample the latent z-value from truncated normal.
+      rr.noalias() += col * z; //update the mean vector
     }
   Eigen::LLT<MatrixXd> chol = MM.llt();
   if(chol.info() != Eigen::Success) {
     throw std::runtime_error("Cholesky Decomposition failed!");
   }
 
-  rr.noalias() += Lambda_u * mu_u;
+  rr.noalias() += Lambda_u * mu_u; //same processing as in normal mode.
   chol.matrixL().solveInPlace(rr);
   for (int i = 0; i < num_latent; i++) {
     rr[i] += randn0();
@@ -448,4 +507,3 @@ MacauPrior<Eigen::MatrixXd>* make_dense_prior(int nlatent, double* ptr, int nrow
 template class MacauPrior<SparseFeat>;
 template class MacauPrior<SparseDoubleFeat>;
 template class MacauPrior<Eigen::MatrixXd>;
-

@@ -211,7 +211,7 @@ TEST_CASE( "chol/chol_solve_t", "[chol_solve_t]" ) {
   m << 7, 0, 0,
        2, 5, 0,
        6, 1, 6;
-  
+
   rhs << -1.227, -0.890,  0.293,
           0.356, -0.733, -1.201,
          -0.003, -0.091, -1.467,
@@ -606,7 +606,7 @@ TEST_CASE( "bpmfutils/row_mean_var", "Test if row_mean_var is correct") {
 TEST_CASE("bpmfutils/auc","AUC ROC") {
   Eigen::VectorXd pred(20);
   Eigen::VectorXd test(20);
-  test << 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 0.0, 1.0, 0.0, 1.0, 
+  test << 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 0.0, 1.0, 0.0, 1.0,
           0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0;
   pred << 20.0, 19.0, 18.0, 17.0, 16.0, 15.0, 14.0, 13.0, 12.0, 11.0,
           10.0, 9.0, 8.0, 7.0, 6.0, 5.0, 4.0, 3.0, 2.0, 1.0;
@@ -627,13 +627,13 @@ TEST_CASE("sparsetensor/sparsemode", "SparseMode constructor") {
   SparseMode sm0(C, v, 0, 4);
 
   REQUIRE( sm0.num_modes == 3);
-  REQUIRE( sm0.row_ptr.size() == 5 ); 
-  REQUIRE( sm0.nnz == 5 ); 
-  REQUIRE( sm0.row_ptr(0) == 0 ); 
-  REQUIRE( sm0.row_ptr(1) == 2 ); 
-  REQUIRE( sm0.row_ptr(2) == 4 ); 
-  REQUIRE( sm0.row_ptr(3) == 5 ); 
-  REQUIRE( sm0.row_ptr(4) == 5 ); 
+  REQUIRE( sm0.row_ptr.size() == 5 );
+  REQUIRE( sm0.nnz == 5 );
+  REQUIRE( sm0.row_ptr(0) == 0 );
+  REQUIRE( sm0.row_ptr(1) == 2 );
+  REQUIRE( sm0.row_ptr(2) == 4 );
+  REQUIRE( sm0.row_ptr(3) == 5 );
+  REQUIRE( sm0.row_ptr(4) == 5 );
   REQUIRE( sm0.modeSize() == 4 );
 
   Eigen::MatrixXi I0(5, 2);
@@ -908,3 +908,12 @@ TEST_CASE( "truncnorm/rand_truncnorm", "generaring random truncnorm variable" ) 
     REQUIRE( rand_truncnorm(30, 2.0, 50.0) >= 50.0 );
   }
 }
+
+  TEST_CASE ("truncnorm/","lower truncation") {
+    double val=20;
+    int cens =1;
+    double mu = 30;
+    for (int i=0; i<10; i++) {
+      REQUIRE((val-cens*rand_truncnorm(val-mu, 1.0, 0))<=20);
+        }
+    }

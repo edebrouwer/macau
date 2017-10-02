@@ -36,4 +36,3 @@ double rand_truncnorm(double mean, double std, double low_cut) {
 	xbar = rand_truncnorm(abar);
 	return std * xbar + mean;
 }
-

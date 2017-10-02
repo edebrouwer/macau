@@ -12,7 +12,7 @@ class Macau {
   public:
   int num_latent;
 
-  //double alpha = 2.0; 
+  //double alpha = 2.0;
   int nsamples = 100;
   int burnin   = 50;
 
@@ -50,10 +50,11 @@ class Macau {
     virtual void saveModel(int isample) = 0;
     virtual Eigen::MatrixXd getTestData() = 0;
     virtual void saveGlobalParams() = 0;
+    virtual void setCensoringData(int* idx, int nmodes, int* censoring, int nnz, int* dims) =0;
     virtual ~Macau();
 };
 
-template<class DType, class NType> 
+template<class DType, class NType>
 class MacauX : public Macau {
   public:
     DType data;
@@ -66,6 +67,7 @@ class MacauX : public Macau {
     void setRelationDataTest(int* rows, int* cols, double* values, int nnz, int nrows, int ncols) override;
     void setRelationData(int* idx, int nmodes, double* values, int nnz, int* dims) override;
     void setRelationDataTest(int* idx, int nmodes, double* values, int nnz, int* dims) override;
+    void setCensoringData(int* idx, int nmodes, int* censoring, int nnz, int* dims) override;
     void init() override;
     void run() override;
     void printStatus(int i, double elapsedi, double samples_per_sec) override;
@@ -83,5 +85,6 @@ class MacauX : public Macau {
 Macau* make_macau_probit(int tensor, int num_latent);
 Macau* make_macau_fixed(int tensor, int num_latent, double precision);
 Macau* make_macau_adaptive(int tensor, int num_latent, double sn_init, double sn_max);
+Macau* make_macau_tobit(int nmodes, int num_latent, double precision);
 
 void sparseFromIJV(Eigen::SparseMatrix<double> & X, int* rows, int* cols, double* values, int N);

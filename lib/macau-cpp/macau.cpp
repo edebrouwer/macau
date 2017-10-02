@@ -24,7 +24,7 @@
 #include "noisemodels.h"
 #include "sparsetensor.h"
 
-using namespace std; 
+using namespace std;
 using namespace Eigen;
 
 static volatile bool keepRunning = true;
@@ -34,41 +34,47 @@ void intHandler(int dummy) {
   printf("[Received Ctrl-C. Stopping after finishing the current iteration.]\n");
 }
 
-template<class DType, class NType> 
+template<class DType, class NType>
 void MacauX<DType, NType>::addPrior(unique_ptr<ILatentPrior> & prior) {
   priors.push_back( std::move(prior) );
 }
 
-template<class DType, class NType> 
+template<class DType, class NType>
 void MacauX<DType, NType>::setSamples(int b, int n) {
   burnin = b;
   nsamples = n;
 }
 
-template<class DType, class NType> 
+template<class DType, class NType>
 void MacauX<DType, NType>::setRelationData(int* rows, int* cols, double* values, int N, int nrows, int ncols) {
   data.setTrain(rows, cols, values, N, nrows, ncols);
 }
 
-template<class DType, class NType> 
+
+template<class DType, class NType>
 void MacauX<DType, NType>::setRelationDataTest(int* rows, int* cols, double* values, int N, int nrows, int ncols) {
   data.setTest(rows, cols, values, N, nrows, ncols);
 }
 
-template<class DType, class NType> 
+template<class DType, class NType>
 void MacauX<DType, NType>::setRelationData(int* idx, int nmodes, double* values, int nnz, int* dims) {
   data.setTrain(idx, nmodes, values, nnz, dims);
 }
 
-template<class DType, class NType> 
+template<class DType, class NType>
+void MacauX<DType, NType>::setCensoringData(int* idx, int nmodes, int* censoring, int nnz, int* dims) {
+  data.setCensoring(idx, nmodes, censoring, nnz, dims);
+}
+
+template<class DType, class NType>
 void MacauX<DType, NType>::setRelationDataTest(int* idx, int nmodes, double* values, int nnz, int* dims) {
   data.setTest(idx, nmodes, values, nnz, dims);
 }
 
-template<class DType, class NType> 
+template<class DType, class NType>
 double MacauX<DType, NType>::getRmseTest() { return rmse_test; }
 
-template<class DType, class NType> 
+template<class DType, class NType>
 void MacauX<DType, NType>::init() {
   unsigned seed1 = std::chrono::system_clock::now().time_since_epoch().count();
   if (priors.size() < 2) {
@@ -90,7 +96,7 @@ Macau::~Macau() {
 
 inline double sqr(double x) { return x*x; }
 
-template<class DType, class NType> 
+template<class DType, class NType>
 void MacauX<DType, NType>::run() {
   init();
   if (verbose) {
@@ -130,7 +136,7 @@ void MacauX<DType, NType>::run() {
     noise.update(data, samples);
 
     noise.evalModel(data, (i < burnin) ? 0 : (i - burnin), predictions, predictions_var, samples);
-    
+
 
     auto endi = tick();
     auto elapsed = endi - start;
@@ -147,7 +153,7 @@ void MacauX<DType, NType>::run() {
   }
 }
 
-template<class DType, class NType> 
+template<class DType, class NType>
 void MacauX<DType, NType>::printStatus(int i, double elapsedi, double samples_per_sec) {
   printf("Iter %3d: %s  ", i, noise.getEvalString().c_str());
 
@@ -171,7 +177,7 @@ void MacauX<DType, NType>::printStatus(int i, double elapsedi, double samples_pe
   printf("%s [took %0.1fs]\n", noise.getStatus().c_str(), elapsedi);
 }
 
-template<class DType, class NType> 
+template<class DType, class NType>
 Eigen::VectorXd MacauX<DType, NType>::getStds() {
   VectorXd std( data.getTestNonzeros() );
   if (nsamples <= 1) {
@@ -187,7 +193,7 @@ Eigen::VectorXd MacauX<DType, NType>::getStds() {
   return std;
 }
 
-template<class DType, class NType> 
+template<class DType, class NType>
 void MacauX<DType, NType>::saveModel(int isample) {
   string fprefix = save_prefix + "-sample" + std::to_string(isample) + "-";
   // saving latent matrices
@@ -197,7 +203,7 @@ void MacauX<DType, NType>::saveModel(int isample) {
   }
 }
 
-template<class DType, class NType> 
+template<class DType, class NType>
 void MacauX<DType, NType>::saveGlobalParams() {
   VectorXd means(1);
   means << data.getMeanValue();
@@ -227,9 +233,19 @@ Macau* make_macau_adaptive(int nmodes, int num_latent, double sn_init, double sn
   }
 }
 
+Macau* make_macau_tobit(int nmodes, int num_latent, double precision) {
+  FixedGaussianNoise fnoise(precision);
+  switch (nmodes) {
+    case 2: return new MacauX<MatrixDataCensored,  FixedGaussianNoise>(num_latent, MatrixDataCensored(), fnoise);
+    default: throw std::runtime_error("Tensor mode not implemented for Censored Data");
+  }
+}
+
 template class MacauX<MatrixData, FixedGaussianNoise>;
 template class MacauX<MatrixData, AdaptiveGaussianNoise>;
 template class MacauX<MatrixData, ProbitNoise>;
+
+template class MacauX<MatrixDataCensored, FixedGaussianNoise>;
 
 template class MacauX<TensorData, FixedGaussianNoise>;
 template class MacauX<TensorData, AdaptiveGaussianNoise>;

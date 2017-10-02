@@ -14,12 +14,15 @@ class INoiseModel {
   public:
     virtual void init(MatrixData & data) { };
     virtual void init(TensorData & data) { };
+    virtual void init(MatrixDataCensored & data) { };
 
     virtual void update(MatrixData & data, std::vector< std::unique_ptr<Eigen::MatrixXd> > &samples) { };
     virtual void update(TensorData & data, std::vector< std::unique_ptr<Eigen::MatrixXd> > &samples) { };
+    virtual void update(MatrixDataCensored & data, std::vector< std::unique_ptr<Eigen::MatrixXd> > &samples) { };
 
     virtual void evalModel(MatrixData & data, const int n, Eigen::VectorXd & predictions, Eigen::VectorXd & predictions_var, std::vector< std::unique_ptr<Eigen::MatrixXd> > & samples) = 0;
     virtual void evalModel(TensorData & data, const int n, Eigen::VectorXd & predictions, Eigen::VectorXd & predictions_var, std::vector< std::unique_ptr<Eigen::MatrixXd> > & samples) = 0;
+    virtual void evalModel(MatrixDataCensored & data, const int n, Eigen::VectorXd & predictions, Eigen::VectorXd & predictions_var, std::vector< std::unique_ptr<Eigen::MatrixXd> > & samples) = 0;
 
     virtual double getEvalMetric() = 0;
     virtual std::string getEvalString() = 0;
@@ -34,19 +37,21 @@ class FixedGaussianNoise : public INoiseModel {
     double alpha;
     double rmse_test = NAN;
     double rmse_test_onesample = NAN;
-  
+
     FixedGaussianNoise(double a) { alpha = a; }
     FixedGaussianNoise() : FixedGaussianNoise(1.0) {};
 
     std::string getInitStatus() override { return std::string("Noise precision: ") + std::to_string(alpha) + " (fixed)"; }
     std::string getStatus() override { return std::string(""); }
 
-    void setPrecision(double a) { alpha = a; }    
+    void setPrecision(double a) { alpha = a; }
     double getEvalMetric() override { return rmse_test;}
     std::string getEvalString() { return std::string("RMSE: ") + to_string_with_precision(rmse_test,5) + " (1samp: " + to_string_with_precision(rmse_test_onesample,5)+")";}
- 
+
     void evalModel(MatrixData & data, const int n, Eigen::VectorXd & predictions, Eigen::VectorXd & predictions_var, std::vector< std::unique_ptr<Eigen::MatrixXd> > & samples) override;
     void evalModel(TensorData & data, const int n, Eigen::VectorXd & predictions, Eigen::VectorXd & predictions_var, std::vector< std::unique_ptr<Eigen::MatrixXd> > & samples) override;
+    void evalModel(MatrixDataCensored & data, const int n, Eigen::VectorXd & predictions, Eigen::VectorXd & predictions_var, std::vector< std::unique_ptr<Eigen::MatrixXd> > & samples) override;
+
 };
 
 /** Gaussian noise that adapts to the data */
@@ -83,6 +88,8 @@ class AdaptiveGaussianNoise : public INoiseModel {
 
     void evalModel(MatrixData & data, const int n, Eigen::VectorXd & predictions, Eigen::VectorXd & predictions_var, std::vector< std::unique_ptr<Eigen::MatrixXd> > & samples) override;
     void evalModel(TensorData & data, const int n, Eigen::VectorXd & predictions, Eigen::VectorXd & predictions_var, std::vector< std::unique_ptr<Eigen::MatrixXd> > & samples) override;
+    void evalModel(MatrixDataCensored & data, const int n, Eigen::VectorXd & predictions, Eigen::VectorXd & predictions_var, std::vector< std::unique_ptr<Eigen::MatrixXd> > & samples) override;
+
 };
 
 /** Probit noise model (binary). Fixed for the whole run */
@@ -99,4 +106,6 @@ class ProbitNoise : public INoiseModel {
 
     void evalModel(MatrixData & data, const int n, Eigen::VectorXd & predictions, Eigen::VectorXd & predictions_var, std::vector< std::unique_ptr<Eigen::MatrixXd> > & samples) override;
     void evalModel(TensorData & data, const int n, Eigen::VectorXd & predictions, Eigen::VectorXd & predictions_var, std::vector< std::unique_ptr<Eigen::MatrixXd> > & samples) override;
+    void evalModel(MatrixDataCensored & data, const int n, Eigen::VectorXd & predictions, Eigen::VectorXd & predictions_var, std::vector< std::unique_ptr<Eigen::MatrixXd> > & samples) override;
+
 };

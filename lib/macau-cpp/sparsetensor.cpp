@@ -104,7 +104,7 @@ void MatrixData::setTrain(int* columns, int nmodes, double* values, int nnz, int
   dims.resize(2);
   dims << Y.rows(), Y.cols();
 }
-    
+
 void MatrixData::setTest(int* columns, int nmodes, double* values, int nnz, int* d) {
   if (nmodes != 2) {
     throw std::runtime_error("MatrixData: tensor training input not supported.");
@@ -115,6 +115,9 @@ void MatrixData::setTest(int* columns, int nmodes, double* values, int nnz, int*
   Ytest.resize(d[0], d[1]);
   sparseFromIJV(Ytest, idx, vals);
 }
+
+void MatrixData::setCensoring(int* columns, int nmodes, int* censored, int nnz, int* d)
+{std::cout << "No censoring" << std::endl;}
 
 
 ////////  TensorData  ///////
@@ -136,7 +139,7 @@ void TensorData::setTrain(int* columns, int nmodes, double* values, int nnz, int
   auto d    = toVector(dims, nmodes);
   setTrain(idx, vals, d);
 }
-    
+
 void TensorData::setTest(int* columns, int nmodes, double* values, int nnz, int* dims) {
   auto idx  = toMatrix(columns, nnz, nmodes);
   auto vals = toVector(values, nnz);
@@ -189,6 +192,86 @@ Eigen::MatrixXd TensorData::getTestData() {
   }
   return coords;
 }
+
+void TensorData::setCensoring(int* columns, int nmodes, int* censored, int nnz, int* d)
+{
+  std::cout <<"No censoring" << std::endl;
+}
+
+//MatrixDataCensored
+
+Eigen::MatrixXd MatrixDataCensored::getTestData() {
+  MatrixXd coords( getTestNonzeros(), 3);
+#pragma omp parallel for schedule(dynamic, 2)
+  for (int k = 0; k < Ytest.outerSize(); ++k) {
+    int idx = Ytest.outerIndexPtr()[k];
+    for (SparseMatrix<double>::InnerIterator it(Ytest,k); it; ++it) {
+      coords(idx, 0) = it.row();
+      coords(idx, 1) = it.col();
+      coords(idx, 2) = it.value();
+      idx++;
+    }
+  }
+  return coords;
+}
+
+void MatrixDataCensored::setTrain(int* rows, int* cols, double* values, int nnz, int nrows, int ncols) {
+	Y.resize(nrows, ncols);
+	sparseFromIJV(Y, rows, cols, values, nnz);
+	Yt = Y.transpose();
+	mean_value = Y.sum() / Y.nonZeros();
+	dims.resize(2);
+	dims << Y.rows(), Y.cols();
+}
+
+void MatrixDataCensored::setTest(int* rows, int* cols, double* values, int nnz, int nrows, int ncols) {
+	Ytest.resize(nrows, ncols);
+	sparseFromIJV(Ytest, rows, cols, values, nnz);
+}
+
+void MatrixDataCensored::setTrain(int* columns, int nmodes, double* values, int nnz, int* d) {
+  if (nmodes != 2) {
+    throw std::runtime_error("MatrixData: tensor training input not supported.");
+  }
+  auto idx  = toMatrix(columns, nnz, nmodes);
+  auto vals = toVector(values, nnz);
+
+  Y.resize(d[0], d[1]);
+  sparseFromIJV(Y, idx, vals);
+
+  Yt = Y.transpose();
+  mean_value = Y.sum() / Y.nonZeros();
+  dims.resize(2);
+  dims << Y.rows(), Y.cols();
+}
+
+void MatrixDataCensored::setTest(int* columns, int nmodes, double* values, int nnz, int* d) {
+  if (nmodes != 2) {
+    throw std::runtime_error("MatrixDataCensored: tensor training input not supported.");
+  }
+  auto idx  = toMatrix(columns, nnz, nmodes);
+  auto vals = toVector(values, nnz);
+
+  Ytest.resize(d[0], d[1]);
+  sparseFromIJV(Ytest, idx, vals);
+}
+
+
+void MatrixDataCensored::setCensoring(int* columns, int nmodes, int* censored, int nnz, int* d) {
+  if (nmodes != 2) {
+    throw std::runtime_error("MatrixDataCensored: tensor training input not supported.");
+  }
+  auto idx  = toMatrix(columns, nnz, nmodes);
+  auto cens = toVector(censored, nnz);
+
+  C.resize(d[0],d[1]);
+  sparseFromIJV(C,idx,cens); //fill matrix C
+  Ct=C.transpose();
+
+  std::cout <<"Censoring Enabled" << std::endl;
+}
+
+
 
 // util functions
 Eigen::MatrixXi toMatrix(int* col1, int* col2, int nrows) {

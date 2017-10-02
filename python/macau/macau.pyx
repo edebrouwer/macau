@@ -152,13 +152,14 @@ def make_train_test_df(Y, ntest):
     return Y.iloc[train], Y.iloc[test]
 
 cdef ILatentPrior* make_prior(side, int num_latent, int max_ff_size, double lambda_beta, double tol) except NULL:
+    print "ENTERING MAKE PRIOR"
     if side is None:
         return new BPMFPrior(num_latent)
     if type(side) not in [scipy.sparse.coo.coo_matrix, scipy.sparse.csr.csr_matrix, scipy.sparse.csc.csc_matrix, np.ndarray]:
         raise TypeError("Unsupported side information type: '%s'" % type(side).__name__)
 
     cdef bool compute_ff = (side.shape[1] <= max_ff_size)
-    
+
     ## dense side information
     cdef MacauPrior[MatrixXd]* dense_prior
     cdef np.ndarray[np.double_t, ndim=2] X
@@ -240,18 +241,32 @@ def remove_nan(Y):
     return scipy.sparse.coo_matrix( (Y.data[idx], (Y.row[idx], Y.col[idx])), shape = Y.shape )
 
 class Data:
-    def __init__(self, Y, Ytest):
+    def __init__(self, Y, Ytest,C):
         matrix_types = [scipy.sparse.coo.coo_matrix, scipy.sparse.csr.csr_matrix, scipy.sparse.csc.csc_matrix]
         if type(Y) in matrix_types:
             if Ytest is None:
                 Ytest = scipy.sparse.coo_matrix(Y.shape, np.float64)
             if isinstance(Ytest, numbers.Real):
                 Y, Ytest = make_train_test(Y, Ytest)
-            if type(Ytest) not in matrix_types:
+            if type(Ytest) not in matrix_types :
                 raise ValueError("When Y is a sparse matrix Ytest must be too.")
             if Y.shape != Ytest.shape:
                 raise ValueError("Y (%d x %d) and Ytest (%d x %d) must have the same shape." %
                                  (Y.shape[0], Y.shape[1], Ytest.shape[0], Ytest.shape[1]))
+
+            self.idxCens=np.array([])
+            self.valCens=np.array([])
+            if C != None:
+                if type(C) not in matrix_types:
+                  raise ValueError("When Y is a sparse matrix C must be too.")
+                if Y.shape != C.shape:
+                  raise ValueError("Y (%d x %d) and Ytest (%d x %d) must have the same shape." %
+                                   (Y.shape[0], Y.shape[1], Ytest.shape[0], Ytest.shape[1]))
+                C = C.tocoo(copy= False)
+                C = remove_nan(C)
+                self.idxCens = [C.row, C.col]
+                self.valCens = C.data
+
             Y = Y.tocoo(copy = False)
             Y = remove_nan(Y)
             Ytest = Ytest.tocoo(copy = False)
@@ -261,9 +276,9 @@ class Data:
             self.valTrain = Y.data
             self.idxTest  = [Ytest.row, Ytest.col]
             self.valTest  = Ytest.data
-            self.colnames   = np.array(["row", "col"], dtype=np.object)
+            self.colnames = np.array(["row", "col"], dtype=np.object)
 
-        elif type(Y) == pd.core.frame.DataFrame:
+        elif type(Y) == pd.core.frame.DataFrame: #Censoring is not yet implemented with dataFrames
             if Ytest is None:
                 Ytrain = Y
                 Ytest  = Y[0:0]
@@ -302,6 +317,9 @@ class Data:
             self.valTrain = np.array(Y[value_col],     dtype=np.float64)
             self.valTest  = np.array(Ytest[value_col], dtype=np.float64)
 
+            if C!=None:
+              raise ValueError("Censoring is not supported with DF yet.")
+
         else:
             raise TypeError("Unsupported Y type: %s" + type(Y))
 
@@ -319,6 +337,14 @@ cdef setData(Macau* macau, data):
 
     macau.setRelationData(&idx[0,0], len(data.shape), &ivals[0], idx.shape[0], &dims[0])
 
+    cdef np.ndarray[int, ndim=2] idx_cens =None
+    cdef np.ndarray[int] icens_vals = None
+    ##Censoring Data
+    if data.valCens.size:
+      idx_cens  = idx_matrix(data.idxCens)
+      icens_vals = data.valCens.astype(np.int32, copy=False)
+      macau.setCensoringData(&idx_cens[0,0], len(data.shape), &icens_vals[0], idx_cens.shape[0], &dims[0])
+
     ## testing data
     cdef np.ndarray[int, ndim=2] te_idx   = idx_matrix(data.idxTest)
     cdef np.ndarray[np.double_t] te_ivals = data.valTest.astype(np.double, copy=False)
@@ -326,11 +352,13 @@ cdef setData(Macau* macau, data):
         macau.setRelationDataTest(&te_idx[0,0], len(data.shape), &te_ivals[0], te_idx.shape[0], &dims[0])
 
 cdef setSidePriors(Macau* macau, side, int D, double lambda_beta, double tol, bool univariate):
+    print "Set Side Priors"
     cdef unique_ptr[ILatentPrior] prior
     for s in side:
         if univariate:
             prior = unique_ptr[ILatentPrior](make_one_prior(s, D, lambda_beta))
         else:
+            print "Make Prior"
             prior = unique_ptr[ILatentPrior](make_prior(s, D, 10000, lambda_beta, tol))
         macau.addPrior(prior)
 
@@ -346,7 +374,8 @@ def macau(Y,
           tol        = 1e-6,
           sn_max     = 10.0,
           save_prefix= None,
-          verbose    = True):
+          verbose    = True,
+          C          = None):
     """
     Matrix and tensor factorization with side information.
       Y          training data to factorize (sparse matrix or DataFrame)
@@ -371,7 +400,7 @@ def macau(Y,
       save_prefix  prefix for model files or None if not saving the model
       verbose      whether to print output for each Gibbs iteration
     """
-    data = Data(Y, Ytest)
+    data = Data(Y, Ytest,C)
 
     ## side information
     if not side:
@@ -379,7 +408,7 @@ def macau(Y,
     if type(side) not in [list, tuple]:
         raise ValueError("Parameter 'side' must be a tuple or a list.")
     if len(side) != len(data.shape):
-        raise ValueError("Length of 'side' is %d but must be equal to the number of data dimensions (%d)." % 
+        raise ValueError("Length of 'side' is %d but must be equal to the number of data dimensions (%d)." %
                 (len(side), len(data.shape)) )
 
     cdef int D = np.int32(num_latent)
@@ -397,7 +426,12 @@ def macau(Y,
       else:
           raise ValueError("Parameter 'precision' has to be either a number or \"adaptive\" for adaptive precision, or \"probit\" for binary matrices.")
     else:
-      macau = make_macau_fixed(Nmodes, D, np.float64(precision))
+      if C==None:
+        macau = make_macau_fixed(Nmodes, D, np.float64(precision))
+      else:
+        if univariate==True:
+          raise ValueError("Univariate sampler for Tobit model is not yet implemented.")
+        macau = make_macau_tobit(Nmodes, D, np.float64(precision))
 
     setData(macau, data)
     setSidePriors(macau, side, D, np.float64(lambda_beta), np.float64(tol), np.bool(univariate))
@@ -415,7 +449,8 @@ def macau(Y,
             macau.setSavePrefix(save_prefix.encode())
         else:
             macau.setSavePrefix(save_prefix)
-
+    print("BP")
+    C/0
     macau.run()
     ## restoring Python default signal handler
     signal.signal(signal.SIGINT, signal.default_int_handler)
@@ -443,4 +478,3 @@ def macau(Y,
     del macau
 
     return result
-

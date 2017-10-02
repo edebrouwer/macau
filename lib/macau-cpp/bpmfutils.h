@@ -12,14 +12,14 @@
 #include "sparsetensor.h"
 
 inline double tick() {
-    return std::chrono::duration_cast<std::chrono::duration<double>>(std::chrono::high_resolution_clock::now().time_since_epoch()).count(); 
+    return std::chrono::duration_cast<std::chrono::duration<double>>(std::chrono::high_resolution_clock::now().time_since_epoch()).count();
 }
 
 inline double clamp(double x, double min, double max) {
   return x < min ? min : (x > max ? max : x);
 }
 
-inline std::pair<double, double> getMinMax(const Eigen::SparseMatrix<double> &mat) { 
+inline std::pair<double, double> getMinMax(const Eigen::SparseMatrix<double> &mat) {
     double min = INFINITY;
     double max = -INFINITY;
     for (int k = 0; k < mat.outerSize(); ++k) {
@@ -64,6 +64,16 @@ inline void sparseFromIJV(Eigen::SparseMatrix<double> &X, int* rows, int* cols, 
   X.setFromTriplets(tripletList.begin(), tripletList.end());
 }
 
+inline void sparseFromIJV(Eigen::SparseMatrix<int> &X, int* rows, int* cols, int* values, int N) {
+  typedef Eigen::Triplet<int> T;
+  std::vector<T> tripletList;
+  tripletList.reserve(N);
+  for (int n = 0; n < N; n++) {
+    tripletList.push_back(T(rows[n], cols[n], values[n]));
+  }
+  X.setFromTriplets(tripletList.begin(), tripletList.end());
+}
+
 inline void sparseFromIJV(Eigen::SparseMatrix<double> &X, Eigen::MatrixXi &idx, Eigen::VectorXd &values) {
   if (idx.rows() != values.size()) {
     throw std::runtime_error("sparseFromIJV: idx.rows() must equal values.size().");
@@ -72,6 +82,23 @@ inline void sparseFromIJV(Eigen::SparseMatrix<double> &X, Eigen::MatrixXi &idx, 
     throw std::runtime_error("sparseFromIJV: idx.cols() must be equal to 2.");
   }
   typedef Eigen::Triplet<double> T;
+  std::vector<T> tripletList;
+  int N = values.size();
+  tripletList.reserve(N);
+  for (int n = 0; n < N; n++) {
+    tripletList.push_back(T(idx(n, 0), idx(n, 1), values(n)));
+  }
+  X.setFromTriplets(tripletList.begin(), tripletList.end());
+}
+
+inline void sparseFromIJV(Eigen::SparseMatrix<int> &X, Eigen::MatrixXi &idx, Eigen::VectorXi &values) {
+  if (idx.rows() != values.size()) {
+    throw std::runtime_error("sparseFromIJV: idx.rows() must equal values.size().");
+  }
+  if (idx.cols() != 2) {
+    throw std::runtime_error("sparseFromIJV: idx.cols() must be equal to 2.");
+  }
+  typedef Eigen::Triplet<int> T;
   std::vector<T> tripletList;
   int N = values.size();
   tripletList.reserve(N);

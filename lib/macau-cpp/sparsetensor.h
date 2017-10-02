@@ -22,15 +22,16 @@ class IData {
     virtual Eigen::MatrixXd getTestData() = 0;
     virtual double getMeanValue() = 0;
     virtual ~IData() {};
+    virtual void setCensoring(int* idx, int nmodes, int* censoring, int nnz, int* dims)=0;
 };
 
 //////   Matrix data    /////
 class MatrixData : public IData {
   public:
     Eigen::SparseMatrix<double> Y, Yt, Ytest;
-    double mean_value = .0; 
+    double mean_value = .0;
     Eigen::VectorXi dims;
-    
+
     MatrixData() {}
 
     Eigen::VectorXi getDims() { return dims; }
@@ -43,6 +44,35 @@ class MatrixData : public IData {
 
     void setTrain(int* idx, int nmodes, double* values, int nnz, int* dims) override;
     void setTest(int* idx, int nmodes, double* values, int nnz, int* dims) override;
+
+    void setCensoring(int* idx, int nmodes, int* censoring, int nnz, int* dims) override;
+
+    Eigen::MatrixXd getTestData() override;
+};
+
+//////   Matrix data with Censoring    /////
+class MatrixDataCensored : public IData {
+  public:
+    Eigen::SparseMatrix<double> Y, Yt, Ytest;
+    Eigen::SparseMatrix<int> C; //Matrix of censoring values
+    Eigen::SparseMatrix<int> Ct;
+    double mean_value = .0;
+    Eigen::VectorXi dims;
+
+    MatrixDataCensored() {}
+
+    Eigen::VectorXi getDims() { return dims; }
+    int getTestNonzeros() { return Ytest.nonZeros(); }
+    double getMeanValue() override { return mean_value; }
+
+
+		void setTrain(int* rows, int* cols, double* values, int nnz, int nrows, int ncols) override;
+		void setTest(int* rows, int* cols, double* values, int nnz, int nrows, int ncols) override;
+
+    void setTrain(int* idx, int nmodes, double* values, int nnz, int* dims) override;
+    void setTest(int* idx, int nmodes, double* values, int nnz, int* dims) override;
+
+    void setCensoring(int* idx, int nmodes, int* censoring, int nnz, int* dims) override;
 
     Eigen::MatrixXd getTestData() override;
 };
@@ -112,6 +142,7 @@ class TensorData : public IData {
     int getTestNonzeros() override { return Ytest.nonZeros(); };
     Eigen::MatrixXd getTestData() override;
     double getMeanValue() override { return mean_value; };
+    void setCensoring(int* idx, int nmodes, int* censoring, int nnz, int* dims)override;
 };
 
 Eigen::MatrixXi toMatrix(int* columns, int nrows, int ncols);

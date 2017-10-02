@@ -68,6 +68,7 @@ cdef extern from "macau.h":
         void setRelationDataTest(int* rows, int* cols, double* values, int N, int nrows, int ncols)
         void setRelationData(int* idx, int nmodes, double* values, int nnz, int* dims)
         void setRelationDataTest(int* idx, int nmodes, double* values, int nnz, int* dims)
+        void setCensoringData(int* idx, int nmodes, int* censoring, int nnz, int* dims)
         void setVerbose(bool v)
         double getRmseTest()
         VectorXd getPredictions()
@@ -82,3 +83,4 @@ cdef extern from "macau.h":
     Macau* make_macau_probit(int nmodes, int num_latent)
     Macau* make_macau_fixed(int nmodes, int num_latent, double precision)
     Macau* make_macau_adaptive(int nmodes, int num_latent, double sn_init, double sn_max)
+    Macau* make_macau_tobit(int nmodes, int num_latent, double precision)

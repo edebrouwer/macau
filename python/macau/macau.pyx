@@ -154,6 +154,7 @@ def make_train_test_df(Y, ntest):
 cdef ILatentPrior* make_prior(side, int num_latent, int max_ff_size, double lambda_beta, double tol) except NULL:
     print "ENTERING MAKE PRIOR"
     if side is None:
+        print "BPMF"
         return new BPMFPrior(num_latent)
     if type(side) not in [scipy.sparse.coo.coo_matrix, scipy.sparse.csr.csr_matrix, scipy.sparse.csc.csc_matrix, np.ndarray]:
         raise TypeError("Unsupported side information type: '%s'" % type(side).__name__)
@@ -165,6 +166,7 @@ cdef ILatentPrior* make_prior(side, int num_latent, int max_ff_size, double lamb
     cdef np.ndarray[np.double_t, ndim=2] X
     cdef bool colMajor
     if type(side) == np.ndarray:
+        print "DENSE"
         if len(side.shape) != 2:
             raise TypeError("Side information must have 2 dimensions (got %d)." % len(side.shape))
         X = side.astype(np.float64, copy=False)
@@ -178,6 +180,7 @@ cdef ILatentPrior* make_prior(side, int num_latent, int max_ff_size, double lamb
     cdef unique_ptr[SparseFeat] sf_ptr
     cdef MacauPrior[SparseFeat]* sf_prior
     if (side.data == 1).all():
+        print "Macau Prior"
         sf_ptr   = unique_ptr[SparseFeat]( sparse2SparseBinFeat(side) )
         sf_prior = new MacauPrior[SparseFeat](num_latent, sf_ptr, compute_ff)
         sf_prior.setLambdaBeta(lambda_beta)
@@ -185,6 +188,7 @@ cdef ILatentPrior* make_prior(side, int num_latent, int max_ff_size, double lamb
         return sf_prior
 
     ## double CSR
+    print "ELSE"
     cdef unique_ptr[SparseDoubleFeat] sdf_ptr
     sdf_ptr = unique_ptr[SparseDoubleFeat]( sparse2SparseDoubleFeat(side) )
     cdef MacauPrior[SparseDoubleFeat]* sdf_prior = new MacauPrior[SparseDoubleFeat](num_latent, sdf_ptr, compute_ff)
@@ -450,7 +454,6 @@ def macau(Y,
         else:
             macau.setSavePrefix(save_prefix)
     print("BP")
-    C/0
     macau.run()
     ## restoring Python default signal handler
     signal.signal(signal.SIGINT, signal.default_int_handler)

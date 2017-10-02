@@ -119,16 +119,20 @@ void BPMFPrior::sample_latents(ProbitNoise & noise, Eigen::MatrixXd &U, const Ei
 
 }
 
+//Tobit
 void BPMFPrior::sample_latents(FixedGaussianNoise& noise, Eigen::MatrixXd &U, const Eigen::SparseMatrix<double> &mat,
                     double mean_value, const Eigen::MatrixXd &samples, const int num_latent,const Eigen::SparseMatrix<int> &C ,double alpha){
-  // TODO
-  throw std::runtime_error("Unimplemented: sample_latents in BPMFPrior");
+const int N = U.cols();
+  #pragma omp parallel for schedule(dynamic, 2)
+    for(int n = 0; n < N; n++) {
+      sample_latent_blas_tobit(U, n, mat, mean_value, samples, mu, Lambda, num_latent,C, alpha);
+    }
 }
 
 void BPMFPrior::sample_latents(ProbitNoise& noiseModel, TensorData & data,
                                std::vector< std::unique_ptr<Eigen::MatrixXd> > & samples, int mode, const int num_latent) {
   // TODO
-  throw std::runtime_error("Unimplemented: sample_latents");
+  throw std::runtime_error("Unimplemented: Probit sample_latents");
 }
 
 void sample_latent_tensor(std::unique_ptr<Eigen::MatrixXd> &U,

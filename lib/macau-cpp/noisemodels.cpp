@@ -200,18 +200,19 @@ void AdaptiveGaussianNoise::evalModel(TensorData & data, const int n, Eigen::Vec
 //evalModel for Censored data
 void FixedGaussianNoise::evalModel(MatrixDataCensored & data, const int n, Eigen::VectorXd & predictions, Eigen::VectorXd & predictions_var,
         std::vector< std::unique_ptr<Eigen::MatrixXd> > & samples) {
-//TODO
-  throw std::runtime_error("evalModel not implemented for Censored Data");
+  auto rmse = eval_rmse(data.Ytest, n, predictions, predictions_var, *samples[1], *samples[0], data.mean_value);
+  rmse_test = rmse.second;
+  rmse_test_onesample = rmse.first;
 }
 
 void AdaptiveGaussianNoise::evalModel(MatrixDataCensored & data, const int n, Eigen::VectorXd & predictions, Eigen::VectorXd & predictions_var,
         std::vector< std::unique_ptr<Eigen::MatrixXd> > & samples) {
   //TODO
-  throw std::runtime_error("evalModel not implemented for Censored Data");
+  throw std::runtime_error("evalModel not implemented for Censored Data and adaptive noise");
 }
 
 void ProbitNoise::evalModel(MatrixDataCensored & data, const int n, Eigen::VectorXd & predictions, Eigen::VectorXd & predictions_var,
         std::vector< std::unique_ptr<Eigen::MatrixXd> > & samples) {
 //TODO
-throw std::runtime_error("evalModel not implemented for Censored Data");
+throw std::runtime_error("evalModel not implemented for Censored Data and probit noise");
 }

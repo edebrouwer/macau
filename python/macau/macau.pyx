@@ -264,7 +264,7 @@ class Data:
                 if type(C) not in matrix_types:
                   raise ValueError("When Y is a sparse matrix C must be too.")
                 if Y.shape != C.shape:
-                  raise ValueError("Y (%d x %d) and Ytest (%d x %d) must have the same shape." %
+                  raise ValueError("Y (%d x %d) and C (%d x %d) must have the same shape." %
                                    (Y.shape[0], Y.shape[1], Ytest.shape[0], Ytest.shape[1]))
                 C = C.tocoo(copy= False)
                 C = remove_nan(C)
@@ -419,6 +419,7 @@ def macau(Y,
     cdef Macau *macau
 
     ## choosing the noise model
+    print("CHOOSING NOISE MODEL")
     cdef int Nmodes = len(data.shape)
     if isinstance(precision, str):
       if precision == "adaptive" or precision == "sample":
@@ -436,6 +437,7 @@ def macau(Y,
         if univariate==True:
           raise ValueError("Univariate sampler for Tobit model is not yet implemented.")
         macau = make_macau_tobit(Nmodes, D, np.float64(precision))
+        print("TOBIT MACAU CREATED")
 
     setData(macau, data)
     setSidePriors(macau, side, D, np.float64(lambda_beta), np.float64(tol), np.bool(univariate))
@@ -453,7 +455,6 @@ def macau(Y,
             macau.setSavePrefix(save_prefix.encode())
         else:
             macau.setSavePrefix(save_prefix)
-    print("BP")
     macau.run()
     ## restoring Python default signal handler
     signal.signal(signal.SIGINT, signal.default_int_handler)

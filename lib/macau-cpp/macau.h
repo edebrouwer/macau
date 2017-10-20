@@ -80,6 +80,7 @@ class MacauX : public Macau {
     void saveModel(int isample) override;
     Eigen::MatrixXd getTestData() override { return data.getTestData(); };
     void saveGlobalParams() override;
+    //std::vector< std::unique_ptr<Eigen::MatrixXd> > getSamples() {return samples ;};
 };
 
 Macau* make_macau_probit(int tensor, int num_latent);

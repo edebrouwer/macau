@@ -29,6 +29,7 @@ void ILatentPrior::sample_latents(AdaptiveGaussianNoise & noise, Eigen::MatrixXd
 
 void ILatentPrior::sample_latents(FixedGaussianNoise & noiseModel, MatrixData & matrixData,
                                 std::vector< std::unique_ptr<Eigen::MatrixXd> > & samples, int mode, const int num_latent) {
+  std::cout << "Entering Sample Latents for Regular !" << std::endl;
   if (mode == 0) {
     this->sample_latents(noiseModel, *samples[0], matrixData.Yt, matrixData.mean_value, *samples[1], num_latent);
   } else {
@@ -57,6 +58,7 @@ void ILatentPrior::sample_latents(ProbitNoise & noiseModel, MatrixData & matrixD
 /*TOBIT*/
 void ILatentPrior::sample_latents(FixedGaussianNoise & noiseModel, MatrixDataCensored & matrixData,
                                 std::vector< std::unique_ptr<Eigen::MatrixXd> > & samples, int mode, const int num_latent) {
+  std::cout << "Entering Sample Latents for Tobit" << std::endl;
   if (mode == 0) {
     this->sample_latents(noiseModel, *samples[0], matrixData.Yt, matrixData.mean_value, *samples[1], num_latent, matrixData.Ct, noiseModel.alpha);
   } else {
@@ -430,7 +432,7 @@ void sample_latent_blas_tobit(MatrixXd &s, int mm, const SparseMatrix<double> &m
       auto col = samples.col(it.row());
       MM.triangularView<Eigen::Lower>() += alpha * col * col.transpose(); //precision matrix computation
 			int cens = C.coeff(it.row(),it.col()); // 1 if censored, 0 otherwise
-      z = (it.value()-cens*rand_truncnorm(it.value()-col.dot(u), alpha, 0)); // if censored, sample from truncnorm, otherwise take the observation
+      z = (it.value()-mean_rating)-cens*rand_truncnorm((it.value()-mean_rating-col.dot(u)), (1/sqrt(alpha)), 0); // if censored, sample from truncnorm, otherwise take the observation
       rr.noalias() += col * z * alpha; //update the mean vector ATTENTION : Should we center with mean_rating ???
     }
   Eigen::LLT<MatrixXd> chol = MM.llt();

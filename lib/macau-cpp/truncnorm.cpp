@@ -36,3 +36,11 @@ double rand_truncnorm(double mean, double std, double low_cut) {
 	xbar = rand_truncnorm(abar);
 	return std * xbar + mean;
 }
+
+
+double rand_dtruncnorm(double mean, double std, double low_cut, double high_cut){
+	double low_bar=(low_cut-mean)/std;
+	double high_bar=(high_cut-mean)/std;
+	double u=rand_unif(norm_cdf(low_bar),norm_cdf(high_bar));
+	return(inv_norm_cdf(u));
+}

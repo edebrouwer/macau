@@ -432,8 +432,8 @@ void sample_latent_blas_tobit(MatrixXd &s, int mm, const SparseMatrix<double> &m
       auto col = samples.col(it.row());
       MM.triangularView<Eigen::Lower>() += alpha * col * col.transpose(); //precision matrix computation
 			int cens = C.coeff(it.row(),it.col()); // 1 if censored, 0 otherwise
-      //z = (it.value()-mean_rating)-cens*rand_truncnorm((it.value()-mean_rating-col.dot(u)), (1/sqrt(alpha)), 0); // if censored, sample from truncnorm, otherwise take the observation
-      z=(1-cens)*(it.value()-mean_rating)+cens*rand_dtruncnorm(col.dot(u),(1/sqrt(alpha)),-mean_rating,(it.value()-mean_rating));
+      z = (it.value()-mean_rating)-cens*rand_truncnorm((it.value()-mean_rating-col.dot(u)), (1/sqrt(alpha)), 0); // if censored, sample from truncnorm, otherwise take the observation
+      //z=(1-cens)*(it.value()-mean_rating)+cens*rand_dtruncnorm(col.dot(u),(1/sqrt(alpha)),-mean_rating,(it.value()-mean_rating));
 
       rr.noalias() += col * z * alpha; //update the mean vector ATTENTION : Should we center with mean_rating ???
     }
